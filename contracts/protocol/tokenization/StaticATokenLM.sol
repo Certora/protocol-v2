@@ -5,6 +5,7 @@ pragma experimental ABIEncoderV2;
 import 'hardhat/console.sol';
 
 import {ILendingPool} from '../../interfaces/ILendingPool.sol';
+import {IScaledBalanceToken} from '../../interfaces/IScaledBalanceToken.sol';
 import {IERC20} from '../../dependencies/openzeppelin/contracts/IERC20.sol';
 import {IERC20Detailed} from '../../dependencies/openzeppelin/contracts/IERC20Detailed.sol';
 import {IAToken} from '../../interfaces/IAToken.sol';
@@ -305,7 +306,6 @@ contract StaticATokenLM is
   ) internal onlyProxy returns (uint256) {
     require(recipient != address(0), StaticATokenErrors.INVALID_RECIPIENT);
 
-    console.log('deposit block number: %d, ts: %d', block.number, block.timestamp);
     if (fromUnderlying) {
       ASSET.safeTransferFrom(depositor, address(this), amount);
       LENDING_POOL.deposit(address(ASSET), amount, address(this), referralCode);
@@ -330,7 +330,6 @@ contract StaticATokenLM is
       staticAmount == 0 || dynamicAmount == 0,
       StaticATokenErrors.ONLY_ONE_AMOUNT_FORMAT_ALLOWED
     );
-    console.log('withdraw block number: %d, ts: %d', block.number, block.timestamp);
 
     uint256 userBalance = balanceOf(owner);
 
@@ -373,13 +372,11 @@ contract StaticATokenLM is
       return;
     }
     uint256 rewardsIndex = _getCurrentRewardsIndex();
-    console.log('rewards index %d', rewardsIndex);
-    uint256 currentRate = rate();
     if (from != address(0)) {
-      _updateUser(from, rewardsIndex, currentRate);
+      _updateUser(from, rewardsIndex);
     }
     if (to != address(0)) {
-      _updateUser(to, rewardsIndex, currentRate);
+      _updateUser(to, rewardsIndex);
     }
   }
 
@@ -468,18 +465,12 @@ contract StaticATokenLM is
    * @notice Adding the pending rewards to the unclaimed for specific user and updating user index
    * @param user The address of the user to update
    */
-  function _updateUser(
-    address user,
-    uint256 currentRewardsIndex,
-    uint256 currentRate
-  ) internal {
+  function _updateUser(address user, uint256 currentRewardsIndex) internal {
     uint256 balance = balanceOf(user);
     if (balance > 0) {
-      uint256 pending =
-        _getPendingRewards(user, _staticToDynamicAmount(balance, currentRate), currentRewardsIndex);
+      uint256 pending = _getPendingRewards(user, balance, currentRewardsIndex);
       _unclaimedRewards[user] = _unclaimedRewards[user].add(pending);
     }
-    console.log('_unclaimedRewards[user] %d', _unclaimedRewards[user]);
     _updateUserSnapshotRewardsPerToken(user, currentRewardsIndex);
   }
 
@@ -504,17 +495,6 @@ contract StaticATokenLM is
     }
 
     uint256 rayBalance = balance.wadToRay();
-
-    console.log(
-      'currentRewardsIndex~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
-    );
-    console.log(currentRewardsIndex);
-    console.log(
-      '_userSnapshotRewardsPerToken~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~'
-    );
-    console.log(_userSnapshotRewardsPerToken[user]);
-    console.log(balance);
-    console.log('delta %d', currentRewardsIndex.sub(_userSnapshotRewardsPerToken[user]));
     return rayBalance.rayMulNoRounding(currentRewardsIndex.sub(_userSnapshotRewardsPerToken[user]));
   }
 
@@ -526,9 +506,7 @@ contract StaticATokenLM is
    */
   function _getClaimableRewards(address user, uint256 balance) internal view returns (uint256) {
     uint256 reward =
-      _unclaimedRewards[user].add(
-        _getPendingRewards(user, _staticToDynamicAmount(balance, rate()), _getCurrentRewardsIndex())
-      );
+      _unclaimedRewards[user].add(_getPendingRewards(user, balance, _getCurrentRewardsIndex()));
     return reward;
   }
 
@@ -536,9 +514,8 @@ contract StaticATokenLM is
     (uint256 index, uint256 emissionPerSecond, uint256 lastUpdateTimestamp) =
       INCENTIVES_CONTROLLER.getAssetData(address(ATOKEN));
     uint256 distributionEnd = INCENTIVES_CONTROLLER.DISTRIBUTION_END();
-    uint256 totalSupply = ATOKEN.totalSupply();
+    uint256 totalSupply = IScaledBalanceToken(address(ATOKEN)).scaledTotalSupply();
 
-    console.log('index now %d', index);
     if (
       emissionPerSecond == 0 ||
       totalSupply == 0 ||
