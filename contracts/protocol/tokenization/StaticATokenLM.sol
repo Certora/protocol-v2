@@ -2,7 +2,10 @@
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
+import 'hardhat/console.sol';
+
 import {ILendingPool} from '../../interfaces/ILendingPool.sol';
+import {IScaledBalanceToken} from '../../interfaces/IScaledBalanceToken.sol';
 import {IERC20} from '../../dependencies/openzeppelin/contracts/IERC20.sol';
 import {IERC20Detailed} from '../../dependencies/openzeppelin/contracts/IERC20Detailed.sol';
 import {IAToken} from '../../interfaces/IAToken.sol';
@@ -369,12 +372,11 @@ contract StaticATokenLM is
       return;
     }
     uint256 rewardsIndex = _getCurrentRewardsIndex();
-    uint256 currentRate = rate();
     if (from != address(0)) {
-      _updateUser(from, rewardsIndex, currentRate);
+      _updateUser(from, rewardsIndex);
     }
     if (to != address(0)) {
-      _updateUser(to, rewardsIndex, currentRate);
+      _updateUser(to, rewardsIndex);
     }
   }
 
@@ -463,14 +465,10 @@ contract StaticATokenLM is
    * @notice Adding the pending rewards to the unclaimed for specific user and updating user index
    * @param user The address of the user to update
    */
-  function _updateUser(
-    address user,
-    uint256 currentRewardsIndex,
-    uint256 currentRate
-  ) internal {
+  function _updateUser(address user, uint256 currentRewardsIndex) internal {
     uint256 balance = balanceOf(user);
     if (balance > 0) {
-      uint256 pending = _getPendingRewards(user, balance.mul(currentRate), currentRewardsIndex);
+      uint256 pending = _getPendingRewards(user, balance, currentRewardsIndex);
       _unclaimedRewards[user] = _unclaimedRewards[user].add(pending);
     }
     _updateUserSnapshotRewardsPerToken(user, currentRewardsIndex);
@@ -488,6 +486,7 @@ contract StaticATokenLM is
     uint256 currentRewardsIndex
   ) internal view returns (uint256) {
     if (address(INCENTIVES_CONTROLLER) == address(0)) {
+      // TODO: let's see, looks useless
       return 0;
     }
 
@@ -496,7 +495,6 @@ contract StaticATokenLM is
     }
 
     uint256 rayBalance = balance.wadToRay();
-
     return rayBalance.rayMulNoRounding(currentRewardsIndex.sub(_userSnapshotRewardsPerToken[user]));
   }
 
@@ -509,14 +507,14 @@ contract StaticATokenLM is
   function _getClaimableRewards(address user, uint256 balance) internal view returns (uint256) {
     uint256 reward =
       _unclaimedRewards[user].add(_getPendingRewards(user, balance, _getCurrentRewardsIndex()));
-    return reward.rayToWadNoRounding();
+    return reward;
   }
 
   function _getCurrentRewardsIndex() public view returns (uint256) {
-    (uint256 emissionPerSecond, uint256 lastUpdateTimestamp, uint256 index) =
+    (uint256 index, uint256 emissionPerSecond, uint256 lastUpdateTimestamp) =
       INCENTIVES_CONTROLLER.getAssetData(address(ATOKEN));
     uint256 distributionEnd = INCENTIVES_CONTROLLER.DISTRIBUTION_END();
-    uint256 totalSupply = ATOKEN.totalSupply();
+    uint256 totalSupply = IScaledBalanceToken(address(ATOKEN)).scaledTotalSupply();
 
     if (
       emissionPerSecond == 0 ||

@@ -1318,12 +1318,16 @@ describe('StaticATokenLM: aToken wrapper with static balances and liquidity mini
 
     // Claim
     await waitForTx(
+      await staticAToken.claimRewardsOnBehalf(userSigner._address, userSigner._address, true)
+    );
+    await waitForTx(
       await staticAToken
         .connect(user2Signer)
         .claimRewardsOnBehalf(user2Signer._address, user2Signer._address, true)
     );
     const ctxtAfterClaim = await getContext(ctxtParams);
 
+    // TODO: SHOULD BE REIMPLEMENTED !!!!!!!
     // Checks
     expect(ctxtAfterDeposit.staticATokenATokenBalance).to.be.eq(
       ctxtInitial.staticATokenATokenBalance.add(amountToDeposit)
@@ -1335,23 +1339,23 @@ describe('StaticATokenLM: aToken wrapper with static balances and liquidity mini
       ctxtAfterDeposit.userStaticATokenBalance
     );
     expect(ctxtAfterTransfer.userStaticATokenBalance).to.be.eq(0);
-    expect(ctxtAfterTransfer.userPendingRewards).to.be.eq(0);
-    expect(ctxtAfterTransfer.user2PendingRewards).to.be.gt(0);
+    expect(ctxtAfterTransfer.userPendingRewards).to.be.gt(0);
+    expect(ctxtAfterTransfer.user2PendingRewards).to.be.eq(0);
     expect(ctxtAfterWithdrawal.staticATokenSupply).to.be.eq(0);
     expect(ctxtAfterWithdrawal.staticATokenATokenBalance).to.be.eq(0);
-    expect(ctxtAfterWithdrawal.userPendingRewards).to.be.eq(0);
+    expect(ctxtAfterWithdrawal.userPendingRewards).to.be.gt(0);
     expect(ctxtAfterWithdrawal.staticATokenTotalClaimableRewards).to.be.gte(
-      ctxtAfterWithdrawal.user2PendingRewards
+      ctxtAfterWithdrawal.user2PendingRewards.add(ctxtAfterWithdrawal.userPendingRewards)
     );
 
-    expect(ctxtAfterClaim.userStkAaveBalance).to.be.eq(0);
+    expect(ctxtAfterClaim.userStkAaveBalance).to.be.gt(0);
     expect(ctxtAfterClaim.user2StkAaveBalance).to.be.eq(ctxtAfterWithdrawal.user2PendingRewards);
     expect(ctxtAfterClaim.staticATokenStkAaveBalance).to.be.eq(
       ctxtAfterWithdrawal.staticATokenTotalClaimableRewards.sub(
-        ctxtAfterWithdrawal.user2PendingRewards
+        ctxtAfterWithdrawal.user2PendingRewards.add(ctxtAfterWithdrawal.userPendingRewards)
       )
     );
     // Expect dust to be left in the contract
-    expect(ctxtAfterClaim.staticATokenStkAaveBalance).to.be.lt(5);
+    expect(ctxtAfterClaim.staticATokenStkAaveBalance).to.be.lte(1);
   });
 });
