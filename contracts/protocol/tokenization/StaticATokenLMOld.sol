@@ -26,7 +26,7 @@ import {SafeMath} from '../../dependencies/openzeppelin/contracts/SafeMath.sol';
  * The token support claiming liquidity mining rewards from the Aave system.
  * @author Aave
  **/
-contract StaticATokenLM is
+contract StaticATokenLMOld is
   VersionedInitializable,
   ERC20('STATIC_ATOKEN_IMPL', 'STATIC_ATOKEN_IMPL'),
   IStaticATokenLM
@@ -59,6 +59,11 @@ contract StaticATokenLM is
   IERC20 public override REWARD_TOKEN;
 
   mapping(address => uint256) public _nonces;
+
+  uint256 internal _accRewardsPerToken;
+  uint256 internal _lifetimeRewardsClaimed;
+  uint256 internal _lifetimeRewards;
+  uint256 internal _lastRewardBlock;
 
   // user => _accRewardsPerToken at last interaction (in RAYs)
   mapping(address => uint256) private _userSnapshotRewardsPerToken;
@@ -302,6 +307,7 @@ contract StaticATokenLM is
     bool fromUnderlying
   ) internal onlyProxy returns (uint256) {
     require(recipient != address(0), StaticATokenErrors.INVALID_RECIPIENT);
+    _updateRewards();
 
     if (fromUnderlying) {
       ASSET.safeTransferFrom(depositor, address(this), amount);
@@ -327,6 +333,7 @@ contract StaticATokenLM is
       staticAmount == 0 || dynamicAmount == 0,
       StaticATokenErrors.ONLY_ONE_AMOUNT_FORMAT_ALLOWED
     );
+    _updateRewards();
 
     uint256 userBalance = balanceOf(owner);
 
@@ -368,13 +375,40 @@ contract StaticATokenLM is
     if (address(INCENTIVES_CONTROLLER) == address(0)) {
       return;
     }
-    uint256 rewardsIndex = _getCurrentRewardsIndex();
-    uint256 currentRate = rate();
     if (from != address(0)) {
-      _updateUser(from, rewardsIndex, currentRate);
+      _updateUser(from);
     }
     if (to != address(0)) {
-      _updateUser(to, rewardsIndex, currentRate);
+      _updateUser(to);
+    }
+  }
+
+  /**
+   * @notice Updates virtual internal accounting of rewards.
+   */
+  function _updateRewards() internal {
+    if (address(INCENTIVES_CONTROLLER) == address(0)) {
+      return;
+    }
+    if (block.number > _lastRewardBlock) {
+      _lastRewardBlock = block.number;
+      uint256 supply = totalSupply();
+      if (supply == 0) {
+        // No rewards can have accrued since last because there were no funds.
+        return;
+      }
+
+      address[] memory assets = new address[](1);
+      assets[0] = address(ATOKEN);
+
+      uint256 freshRewards = INCENTIVES_CONTROLLER.getRewardsBalance(assets, address(this));
+      uint256 lifetimeRewards = _lifetimeRewardsClaimed.add(freshRewards); // TODO: WTF is this?
+      uint256 rewardsAccrued = lifetimeRewards.sub(_lifetimeRewards).wadToRay();
+
+      _accRewardsPerToken = _accRewardsPerToken.add(
+        (rewardsAccrued).rayDivNoRounding(supply.wadToRay())
+      );
+      _lifetimeRewards = lifetimeRewards;
     }
   }
 
@@ -384,10 +418,28 @@ contract StaticATokenLM is
       return;
     }
 
+    _lastRewardBlock = block.number;
+    uint256 supply = totalSupply();
+
     address[] memory assets = new address[](1);
     assets[0] = address(ATOKEN);
 
-    INCENTIVES_CONTROLLER.claimRewards(assets, type(uint256).max, address(this));
+    uint256 freshlyClaimed =
+      INCENTIVES_CONTROLLER.claimRewards(assets, type(uint256).max, address(this));
+    uint256 lifetimeRewards = _lifetimeRewardsClaimed.add(freshlyClaimed);
+    uint256 rewardsAccrued = lifetimeRewards.sub(_lifetimeRewards).wadToRay();
+
+    if (supply > 0 && rewardsAccrued > 0) {
+      _accRewardsPerToken = _accRewardsPerToken.add(
+        (rewardsAccrued).rayDivNoRounding(supply.wadToRay())
+      );
+    }
+
+    if (rewardsAccrued > 0) {
+      _lifetimeRewards = lifetimeRewards;
+    }
+
+    _lifetimeRewardsClaimed = lifetimeRewards;
   }
 
   /**
@@ -406,17 +458,14 @@ contract StaticATokenLM is
     }
 
     uint256 balance = balanceOf(onBehalfOf);
-    uint256 reward = _getClaimableRewards(onBehalfOf, balance); // TODO: looks like index should be higher to reuse
+    uint256 reward = _getClaimableRewards(onBehalfOf, balance, false);
     uint256 totBal = REWARD_TOKEN.balanceOf(address(this));
-    //    uint256 unclaimedReward = 0; //for unclaimed fix
     if (reward > totBal) {
-      //      unclaimedReward = reward - totBal;  //for unclaimed fix
       reward = totBal;
     }
     if (reward > 0) {
-      _unclaimedRewards[onBehalfOf] = 0; // TODO: wtf, are you joking, even if reward > totBal?
-      //      _unclaimedRewards[onBehalfOf] = unclaimedReward; // that's how I think it should be
-      _updateUserSnapshotRewardsPerToken(onBehalfOf, _getCurrentRewardsIndex()); // TODO: looks like index should be higher to reuse
+      _unclaimedRewards[onBehalfOf] = 0;
+      _updateUserSnapshotRewardsPerToken(onBehalfOf);
       REWARD_TOKEN.safeTransfer(receiver, reward);
     }
   }
@@ -455,37 +504,34 @@ contract StaticATokenLM is
    * @notice Update the rewardDebt for a user with balance as his balance
    * @param user The user to update
    */
-  function _updateUserSnapshotRewardsPerToken(address user, uint256 currentRewardsIndex) internal {
-    _userSnapshotRewardsPerToken[user] = currentRewardsIndex;
+  function _updateUserSnapshotRewardsPerToken(address user) internal {
+    _userSnapshotRewardsPerToken[user] = _accRewardsPerToken;
   }
 
   /**
    * @notice Adding the pending rewards to the unclaimed for specific user and updating user index
    * @param user The address of the user to update
    */
-  function _updateUser(
-    address user,
-    uint256 currentRewardsIndex,
-    uint256 currentRate
-  ) internal {
+  function _updateUser(address user) internal {
     uint256 balance = balanceOf(user);
     if (balance > 0) {
-      uint256 pending = _getPendingRewards(user, balance.mul(currentRate), currentRewardsIndex);
+      uint256 pending = _getPendingRewards(user, balance, false);
       _unclaimedRewards[user] = _unclaimedRewards[user].add(pending);
     }
-    _updateUserSnapshotRewardsPerToken(user, currentRewardsIndex);
+    _updateUserSnapshotRewardsPerToken(user);
   }
 
   /**
    * @notice Compute the pending in RAY (rounded down). Pending is the amount to add (not yet unclaimed) rewards in RAY (rounded down).
    * @param user The user to compute for
    * @param balance The balance of the user
+   * @param fresh Flag to account for rewards not claimed by contract yet
    * @return The amound of pending rewards in RAY
    */
   function _getPendingRewards(
     address user,
     uint256 balance,
-    uint256 currentRewardsIndex
+    bool fresh
   ) internal view returns (uint256) {
     if (address(INCENTIVES_CONTROLLER) == address(0)) {
       return 0;
@@ -497,40 +543,38 @@ contract StaticATokenLM is
 
     uint256 rayBalance = balance.wadToRay();
 
-    return rayBalance.rayMulNoRounding(currentRewardsIndex.sub(_userSnapshotRewardsPerToken[user]));
+    uint256 supply = totalSupply();
+    uint256 accRewardsPerToken = _accRewardsPerToken;
+
+    if (supply != 0 && fresh) {
+      address[] memory assets = new address[](1);
+      assets[0] = address(ATOKEN);
+
+      uint256 freshReward = INCENTIVES_CONTROLLER.getRewardsBalance(assets, address(this));
+      uint256 lifetimeRewards = _lifetimeRewardsClaimed.add(freshReward);
+      uint256 rewardsAccrued = lifetimeRewards.sub(_lifetimeRewards).wadToRay();
+      accRewardsPerToken = accRewardsPerToken.add(
+        (rewardsAccrued).rayDivNoRounding(supply.wadToRay())
+      );
+    }
+
+    return rayBalance.rayMulNoRounding(accRewardsPerToken.sub(_userSnapshotRewardsPerToken[user]));
   }
 
   /**
    * @notice Compute the claimable rewards for a user
    * @param user The address of the user
    * @param balance The balance of the user in WAD
+   * @param fresh Flag to account for rewards not claimed by contract yet
    * @return The total rewards that can be claimed by the user (if `fresh` flag true, after updating rewards)
    */
-  function _getClaimableRewards(address user, uint256 balance) internal view returns (uint256) {
-    uint256 reward =
-      _unclaimedRewards[user].add(_getPendingRewards(user, balance, _getCurrentRewardsIndex()));
+  function _getClaimableRewards(
+    address user,
+    uint256 balance,
+    bool fresh
+  ) internal view returns (uint256) {
+    uint256 reward = _unclaimedRewards[user].add(_getPendingRewards(user, balance, fresh));
     return reward.rayToWadNoRounding();
-  }
-
-  function _getCurrentRewardsIndex() public view returns (uint256) {
-    (uint256 emissionPerSecond, uint256 lastUpdateTimestamp, uint256 index) =
-      INCENTIVES_CONTROLLER.getAssetData(address(ATOKEN));
-    uint256 distributionEnd = INCENTIVES_CONTROLLER.DISTRIBUTION_END();
-    uint256 totalSupply = ATOKEN.totalSupply();
-
-    if (
-      emissionPerSecond == 0 ||
-      totalSupply == 0 ||
-      lastUpdateTimestamp == block.timestamp ||
-      lastUpdateTimestamp >= distributionEnd
-    ) {
-      return index;
-    }
-
-    uint256 currentTimestamp =
-      block.timestamp > distributionEnd ? distributionEnd : block.timestamp;
-    uint256 timeDelta = currentTimestamp.sub(lastUpdateTimestamp);
-    return emissionPerSecond.mul(timeDelta).mul(10**uint256(18)).div(totalSupply).add(index); // 18- precision, should be loaded
   }
 
   ///@inheritdoc IStaticATokenLM
@@ -547,7 +591,7 @@ contract StaticATokenLM is
 
   ///@inheritdoc IStaticATokenLM
   function getClaimableRewards(address user) external view override returns (uint256) {
-    return _getClaimableRewards(user, balanceOf(user));
+    return _getClaimableRewards(user, balanceOf(user), true);
   }
 
   ///@inheritdoc IStaticATokenLM
@@ -556,19 +600,19 @@ contract StaticATokenLM is
   }
 
   function getAccRewardsPerToken() external view override returns (uint256) {
-    return 0;
+    return _accRewardsPerToken;
   }
 
   function getLifetimeRewardsClaimed() external view override returns (uint256) {
-    return 0;
+    return _lifetimeRewardsClaimed;
   }
 
   function getLifetimeRewards() external view override returns (uint256) {
-    return 0;
+    return _lifetimeRewards;
   }
 
   function getLastRewardBlock() external view override returns (uint256) {
-    return 0;
+    return _lastRewardBlock;
   }
 
   function getIncentivesController() external view override returns (IAaveIncentivesController) {

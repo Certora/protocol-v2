@@ -76,7 +76,7 @@ const mainnetFork = MAINNET_FORK
 
 const buidlerConfig: HardhatUserConfig = {
   gasReporter: {
-    enabled: false,
+    enabled: true,
   },
   solidity: {
     compilers: [
