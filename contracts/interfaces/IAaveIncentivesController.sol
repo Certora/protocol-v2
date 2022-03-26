@@ -25,8 +25,8 @@ interface IAaveIncentivesController {
     external
     view
     returns (
-      uint256,
-      uint256,
+      uint128,
+      uint128,
       uint256
     );
 
