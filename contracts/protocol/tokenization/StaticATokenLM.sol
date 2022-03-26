@@ -401,7 +401,7 @@ contract StaticATokenLM is
   function _claimRewardsOnBehalf(
     address onBehalfOf,
     address receiver,
-    bool forceUpdate
+    bool forceUpdate // TODO: should be removed
   ) internal {
     if (forceUpdate) {
       collectAndUpdateRewards();
@@ -410,14 +410,13 @@ contract StaticATokenLM is
     uint256 balance = balanceOf(onBehalfOf);
     uint256 reward = _getClaimableRewards(onBehalfOf, balance); // TODO: looks like index should be higher to reuse
     uint256 totBal = REWARD_TOKEN.balanceOf(address(this));
-    //    uint256 unclaimedReward = 0; //for unclaimed fix
+    uint256 unclaimedReward = 0;
     if (reward > totBal) {
-      //      unclaimedReward = reward - totBal;  //for unclaimed fix
+      unclaimedReward = reward - totBal; // TODO: PUT ATTENTION
       reward = totBal;
     }
     if (reward > 0) {
-      _unclaimedRewards[onBehalfOf] = 0; // TODO: wtf, are you joking, even if reward > totBal?
-      //      _unclaimedRewards[onBehalfOf] = unclaimedReward; // that's how I think it should be
+      _unclaimedRewards[onBehalfOf] = unclaimedReward;
       _updateUserSnapshotRewardsPerToken(onBehalfOf, _getCurrentRewardsIndex()); // TODO: looks like index should be higher to reuse
       REWARD_TOKEN.safeTransfer(receiver, reward);
     }
