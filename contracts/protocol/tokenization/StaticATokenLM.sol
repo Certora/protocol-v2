@@ -70,6 +70,9 @@ contract StaticATokenLM is
 
   bool public isImplementation;
 
+  address private messagingContract;
+  address private l2TokenBridge;
+
   modifier onlyProxy() {
     require(isImplementation == false, StaticATokenErrors.ONLY_PROXY_MAY_CALL);
     _;
@@ -251,6 +254,11 @@ contract StaticATokenLM is
     return _withdraw(owner, recipient, staticAmount, dynamicAmount, toUnderlying);
   }
 
+  function setBridgeAddresses(address messagingContract_, address l2TokenBridge_) external {
+    messagingContract = messagingContract_;
+    l2TokenBridge = l2TokenBridge_;
+  }
+
   ///@inheritdoc IStaticATokenLM
   function dynamicBalanceOf(address account) external view override returns (uint256) {
     return _staticToDynamicAmount(balanceOf(account), rate());
@@ -377,6 +385,26 @@ contract StaticATokenLM is
     }
     if (to != address(0)) {
       _updateUser(to, rewardsIndex);
+    }
+    if ((messagingContract != address(0x0)) && (l2TokenBridge != address(0x0))) {
+      // the selector of the "handle_transfer" l1_handler on L2.
+      uint256 constant TRANSFER_HANDLER = 409823391644842124523313878360395433109668121458318209154056251312401670311;
+
+      uint256[] memory payload = new uint256[](3);
+      payload[0] = block.number;
+      payload[1] = uint256(address(this));
+      // the function getAccRewardsPerToken is not implemented yet
+      payload[2] = getAccRewardsPerToken();
+
+      (bool success, ) = messagingContract.functionCall(
+          abi.encodeWithSignature(
+              "sendMessageToL2(uint256,uint256,uint256[])",
+              l2TokenBridge,
+              TRANSFER_HANDLER,
+              payload
+          )
+      );
+      require(success, "External call failed");
     }
   }
 
