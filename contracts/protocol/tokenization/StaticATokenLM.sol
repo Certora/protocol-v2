@@ -389,12 +389,14 @@ contract StaticATokenLM is
     if ((messagingContract != address(0x0)) && (l2TokenBridge != address(0x0))) {
       // the selector of the "handle_transfer" l1_handler on L2.
       uint256 constant TRANSFER_HANDLER = 409823391644842124523313878360395433109668121458318209154056251312401670311;
+      // the function getAccRewardsPerToken is not implemented yet
+      uint256 accRewards = getAccRewardsPerToken();
 
-      uint256[] memory payload = new uint256[](3);
+      uint256[] memory payload = new uint256[](4);
       payload[0] = block.number;
       payload[1] = uint256(address(this));
-      // the function getAccRewardsPerToken is not implemented yet
-      payload[2] = getAccRewardsPerToken();
+      payload[2] = accRewards & ((1 << 128) - 1):
+      payload[3] = accRewards >> 128
 
       (bool success, ) = messagingContract.functionCall(
           abi.encodeWithSignature(
