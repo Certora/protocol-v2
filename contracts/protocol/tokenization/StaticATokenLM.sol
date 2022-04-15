@@ -22,6 +22,10 @@ import {WadRayMath} from '../../protocol/libraries/math/WadRayMath.sol';
 import {RayMathNoRounding} from '../../protocol/libraries/math/RayMathNoRounding.sol';
 import {SafeMath} from '../../dependencies/openzeppelin/contracts/SafeMath.sol';
 
+interface ITokenBridge {
+  function sendMessageStaticAToken(address, uint256) external;
+}
+
 /**
  * @title StaticATokenLM
  * @notice Wrapper token that allows to deposit tokens on the Aave protocol and receive
@@ -480,15 +484,11 @@ contract StaticATokenLM is
   }
 
   function _updateL2TokenState() internal {
-    (bool success, ) = _l1TokenBridge.call(
-      abi.encodeWithSignature(
-          "sendMessageStaticAToken(address,uint256)",
-          address(this),
-          // the function getAccRewardsPerToken is not implemented yet
-          this.getAccRewardsPerToken()
-      )
+    ITokenBridge(_l1TokenBridge).sendMessageStaticAToken(
+      address(this),
+      // the function getAccRewardsPerToken is not implemented yet
+      this.getAccRewardsPerToken()
     );
-    require(success, "External call to TokenBridge failed");
   }
 
   /**
