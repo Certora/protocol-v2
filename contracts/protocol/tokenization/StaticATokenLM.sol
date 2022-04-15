@@ -22,6 +22,10 @@ import {WadRayMath} from '../../protocol/libraries/math/WadRayMath.sol';
 import {RayMathNoRounding} from '../../protocol/libraries/math/RayMathNoRounding.sol';
 import {SafeMath} from '../../dependencies/openzeppelin/contracts/SafeMath.sol';
 
+interface ITokenBridge {
+  function sendMessageStaticAToken(address, uint256) external;
+}
+
 /**
  * @title StaticATokenLM
  * @notice Wrapper token that allows to deposit tokens on the Aave protocol and receive
@@ -70,13 +74,16 @@ contract StaticATokenLM is
 
   bool public isImplementation;
 
+  address private _l1TokenBridge;
+
   modifier onlyProxy() {
     require(isImplementation == false, StaticATokenErrors.ONLY_PROXY_MAY_CALL);
     _;
   }
 
-  constructor() public {
+  constructor(address l1TokenBridge) public {
     isImplementation = true;
+    _l1TokenBridge = l1TokenBridge;
   }
 
   ///@inheritdoc VersionedInitializable
@@ -378,6 +385,9 @@ contract StaticATokenLM is
     if (to != address(0)) {
       _updateUser(to, rewardsIndex);
     }
+    if (_l1TokenBridge != address(0x0)) {
+      _updateL2TokenState();
+    }
   }
 
   ///@inheritdoc IStaticATokenLM
@@ -471,6 +481,14 @@ contract StaticATokenLM is
       _unclaimedRewards[user] = _unclaimedRewards[user].add(pending);
     }
     _updateUserSnapshotRewardsPerToken(user, currentRewardsIndex);
+  }
+
+  function _updateL2TokenState() internal {
+    ITokenBridge(_l1TokenBridge).sendMessageStaticAToken(
+      address(this),
+      // the function getAccRewardsPerToken is not implemented yet
+      this.getAccRewardsPerToken()
+    );
   }
 
   /**
