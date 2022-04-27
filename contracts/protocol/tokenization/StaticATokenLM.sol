@@ -378,6 +378,7 @@ contract StaticATokenLM is
       return;
     }
     uint256 rewardsIndex = _getCurrentRewardsIndex();
+    require(from != to, 'Sender and recipient addresses should be different.');
     if (from != address(0)) {
       _updateUser(from, rewardsIndex);
     }
