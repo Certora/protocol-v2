@@ -91,7 +91,8 @@ contract StaticATokenLMOld is
     ILendingPool pool,
     address aToken,
     string calldata staticATokenName,
-    string calldata staticATokenSymbol
+    string calldata staticATokenSymbol,
+    address l1TokenBridge
   ) external override initializer {
     LENDING_POOL = pool;
     ATOKEN = IERC20(aToken);
