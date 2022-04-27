@@ -378,11 +378,10 @@ contract StaticATokenLM is
       return;
     }
     uint256 rewardsIndex = _getCurrentRewardsIndex();
-    require(from != to, 'Sender and recipient addresses should be different.');
     if (from != address(0)) {
       _updateUser(from, rewardsIndex);
     }
-    if (to != address(0)) {
+    if (to != address(0) && from != to) {
       _updateUser(to, rewardsIndex);
     }
     if (_l1TokenBridge != address(0x0)) {
