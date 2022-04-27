@@ -2,8 +2,6 @@
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
-import 'hardhat/console.sol';
-
 import {ILendingPool} from '../../interfaces/ILendingPool.sol';
 import {IScaledBalanceToken} from '../../interfaces/IScaledBalanceToken.sol';
 import {IERC20} from '../../dependencies/openzeppelin/contracts/IERC20.sol';
@@ -83,7 +81,6 @@ contract StaticATokenLM is
 
   constructor(address l1TokenBridge) public {
     isImplementation = true;
-    _l1TokenBridge = l1TokenBridge;
   }
 
   ///@inheritdoc VersionedInitializable
@@ -96,8 +93,10 @@ contract StaticATokenLM is
     ILendingPool pool,
     address aToken,
     string calldata staticATokenName,
-    string calldata staticATokenSymbol
+    string calldata staticATokenSymbol,
+    address l1TokenBridge
   ) external override initializer {
+    _l1TokenBridge = l1TokenBridge;
     LENDING_POOL = pool;
     ATOKEN = IERC20(aToken);
 
@@ -386,7 +385,7 @@ contract StaticATokenLM is
       _updateUser(to, rewardsIndex);
     }
     if (_l1TokenBridge != address(0x0)) {
-      _updateL2TokenState();
+      _updateL2TokenState(rewardsIndex);
     }
   }
 
@@ -483,12 +482,8 @@ contract StaticATokenLM is
     _updateUserSnapshotRewardsPerToken(user, currentRewardsIndex);
   }
 
-  function _updateL2TokenState() internal {
-    ITokenBridge(_l1TokenBridge).sendMessageStaticAToken(
-      address(this),
-      // the function getAccRewardsPerToken is not implemented yet
-      this.getAccRewardsPerToken()
-    );
+  function _updateL2TokenState(uint256 currentRewardsIndex) internal {
+    ITokenBridge(_l1TokenBridge).sendMessageStaticAToken(address(this), currentRewardsIndex);
   }
 
   /**
