@@ -173,34 +173,28 @@ interface IStaticATokenLM is IERC20, IInitializableStaticATokenLM {
 
   /**
    * @notice Claims rewards from `INCENTIVES_CONTROLLER` and updates internal accounting of rewards.
+   * @return uint256 Amount collected
    */
-  function collectAndUpdateRewards() external;
+  function collectAndUpdateRewards() external returns (uint256);
 
   /**
    * @notice Claim rewards on behalf of a user and send them to a receiver
    * @dev Only callable by if sender is onBehalfOf or sender is approved claimer
    * @param onBehalfOf The address to claim on behalf of
    * @param receiver The address to receive the rewards
-   * @param forceUpdate Flag to retrieve latest rewards from `INCENTIVES_CONTROLLER`
    */
-  function claimRewardsOnBehalf(
-    address onBehalfOf,
-    address receiver,
-    bool forceUpdate
-  ) external;
+  function claimRewardsOnBehalf(address onBehalfOf, address receiver) external;
 
   /**
    * @notice Claim rewards and send them to a receiver
    * @param receiver The address to receive the rewards
-   * @param forceUpdate Flag to retrieve latest rewards from `INCENTIVES_CONTROLLER`
    */
-  function claimRewards(address receiver, bool forceUpdate) external;
+  function claimRewards(address receiver) external;
 
   /**
    * @notice Claim rewards
-   * @param forceUpdate Flag to retrieve latest rewards from `INCENTIVES_CONTROLLER`
    */
-  function claimRewardsToSelf(bool forceUpdate) external;
+  function claimRewardsToSelf() external;
 
   /**
    * @notice Get the total claimable rewards of the contract.

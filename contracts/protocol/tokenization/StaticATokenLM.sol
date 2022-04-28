@@ -79,7 +79,7 @@ contract StaticATokenLM is
     _;
   }
 
-  constructor(address l1TokenBridge) public {
+  constructor() public {
     isImplementation = true;
   }
 
@@ -390,52 +390,46 @@ contract StaticATokenLM is
   }
 
   ///@inheritdoc IStaticATokenLM
-  function collectAndUpdateRewards() public override {
+  //* @return Rewards claimed
+  function collectAndUpdateRewards() public override returns (uint256) {
     if (address(INCENTIVES_CONTROLLER) == address(0)) {
-      return;
+      return 0;
     }
 
     address[] memory assets = new address[](1);
     assets[0] = address(ATOKEN);
 
-    INCENTIVES_CONTROLLER.claimRewards(assets, type(uint256).max, address(this));
+    return INCENTIVES_CONTROLLER.claimRewards(assets, type(uint256).max, address(this));
   }
 
   /**
    * @notice Claim rewards on behalf of a user and send them to a receiver
    * @param onBehalfOf The address to claim on behalf of
    * @param receiver The address to receive the rewards
-   * @param forceUpdate Flag to retrieve latest rewards from `INCENTIVES_CONTROLLER`
    */
-  function _claimRewardsOnBehalf(
-    address onBehalfOf,
-    address receiver,
-    bool forceUpdate // TODO: should be removed
-  ) internal {
-    if (forceUpdate) {
-      collectAndUpdateRewards();
+  function _claimRewardsOnBehalf(address onBehalfOf, address receiver) internal {
+    uint256 currentRewardsIndex = _getCurrentRewardsIndex();
+    uint256 balance = balanceOf(onBehalfOf);
+    uint256 userReward = _getClaimableRewards(onBehalfOf, balance, currentRewardsIndex);
+    uint256 totalRewardTokenBalance = REWARD_TOKEN.balanceOf(address(this));
+    uint256 unclaimedReward = 0;
+
+    if (userReward > totalRewardTokenBalance) {
+      totalRewardTokenBalance += collectAndUpdateRewards();
     }
 
-    uint256 balance = balanceOf(onBehalfOf);
-    uint256 reward = _getClaimableRewards(onBehalfOf, balance); // TODO: looks like index should be higher to reuse
-    uint256 totBal = REWARD_TOKEN.balanceOf(address(this));
-    uint256 unclaimedReward = 0;
-    if (reward > totBal) {
-      unclaimedReward = reward - totBal; // TODO: PUT ATTENTION
-      reward = totBal;
+    if (userReward > totalRewardTokenBalance) {
+      unclaimedReward = userReward - totalRewardTokenBalance;
+      userReward = totalRewardTokenBalance;
     }
-    if (reward > 0) {
+    if (userReward > 0) {
       _unclaimedRewards[onBehalfOf] = unclaimedReward;
-      _updateUserSnapshotRewardsPerToken(onBehalfOf, _getCurrentRewardsIndex()); // TODO: looks like index should be higher to reuse
-      REWARD_TOKEN.safeTransfer(receiver, reward);
+      _updateUserSnapshotRewardsPerToken(onBehalfOf, currentRewardsIndex);
+      REWARD_TOKEN.safeTransfer(receiver, userReward);
     }
   }
 
-  function claimRewardsOnBehalf(
-    address onBehalfOf,
-    address receiver,
-    bool forceUpdate
-  ) external override {
+  function claimRewardsOnBehalf(address onBehalfOf, address receiver) external override {
     if (address(INCENTIVES_CONTROLLER) == address(0)) {
       return;
     }
@@ -444,21 +438,21 @@ contract StaticATokenLM is
       msg.sender == onBehalfOf || msg.sender == INCENTIVES_CONTROLLER.getClaimer(onBehalfOf),
       StaticATokenErrors.INVALID_CLAIMER
     );
-    _claimRewardsOnBehalf(onBehalfOf, receiver, forceUpdate);
+    _claimRewardsOnBehalf(onBehalfOf, receiver);
   }
 
-  function claimRewards(address receiver, bool forceUpdate) external override {
+  function claimRewards(address receiver) external override {
     if (address(INCENTIVES_CONTROLLER) == address(0)) {
       return;
     }
-    _claimRewardsOnBehalf(msg.sender, receiver, forceUpdate);
+    _claimRewardsOnBehalf(msg.sender, receiver);
   }
 
-  function claimRewardsToSelf(bool forceUpdate) external override {
+  function claimRewardsToSelf() external override {
     if (address(INCENTIVES_CONTROLLER) == address(0)) {
       return;
     }
-    _claimRewardsOnBehalf(msg.sender, msg.sender, forceUpdate);
+    _claimRewardsOnBehalf(msg.sender, msg.sender);
   }
 
   /**
@@ -516,9 +510,13 @@ contract StaticATokenLM is
    * @param balance The balance of the user in WAD
    * @return The total rewards that can be claimed by the user (if `fresh` flag true, after updating rewards)
    */
-  function _getClaimableRewards(address user, uint256 balance) internal view returns (uint256) {
+  function _getClaimableRewards(
+    address user,
+    uint256 balance,
+    uint256 currentRewardsIndex
+  ) internal view returns (uint256) {
     uint256 reward =
-      _unclaimedRewards[user].add(_getPendingRewards(user, balance, _getCurrentRewardsIndex()));
+      _unclaimedRewards[user].add(_getPendingRewards(user, balance, currentRewardsIndex));
     return reward;
   }
 
@@ -557,7 +555,7 @@ contract StaticATokenLM is
 
   ///@inheritdoc IStaticATokenLM
   function getClaimableRewards(address user) external view override returns (uint256) {
-    return _getClaimableRewards(user, balanceOf(user));
+    return _getClaimableRewards(user, balanceOf(user), _getCurrentRewardsIndex());
   }
 
   ///@inheritdoc IStaticATokenLM
