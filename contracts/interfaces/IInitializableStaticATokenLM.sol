@@ -30,11 +30,13 @@ interface IInitializableStaticATokenLM {
    * @param aToken The address of the underlying aToken (aWETH)
    * @param staticATokenName The name of the Static aToken
    * @param staticATokenSymbol The symbol of the Static aToken
+   * @param l1TokenBridge The address of the bridge to Starknet
    */
   function initialize(
     ILendingPool pool,
     address aToken,
     string calldata staticATokenName,
-    string calldata staticATokenSymbol
+    string calldata staticATokenSymbol,
+    address l1TokenBridge
   ) external;
 }
