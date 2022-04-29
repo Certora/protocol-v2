@@ -21,7 +21,7 @@ import {RayMathNoRounding} from '../../protocol/libraries/math/RayMathNoRounding
 import {SafeMath} from '../../dependencies/openzeppelin/contracts/SafeMath.sol';
 
 interface ITokenBridge {
-  function sendMessageStaticAToken(address, uint256) external;
+  function sendMessageStaticAToken(uint256) external;
 }
 
 /**
@@ -477,7 +477,7 @@ contract StaticATokenLM is
   }
 
   function _updateL2TokenState(uint256 currentRewardsIndex) internal {
-    ITokenBridge(_l1TokenBridge).sendMessageStaticAToken(address(this), currentRewardsIndex);
+    ITokenBridge(_l1TokenBridge).sendMessageStaticAToken(currentRewardsIndex);
   }
 
   /**
