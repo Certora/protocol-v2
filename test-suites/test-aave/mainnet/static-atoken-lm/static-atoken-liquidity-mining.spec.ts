@@ -167,13 +167,20 @@ describe('StaticATokenLM: aToken wrapper with static balances and liquidity mini
       LENDING_POOL,
       AWETH,
       'Static Aave Interest Bearing WETH',
-      'stataWETH'
+      'stataWETH',
+      ethers.constants.AddressZero
     );
 
     const proxy = await new InitializableAdminUpgradeabilityProxyFactory(userSigner).deploy();
     const encodedInitializedParams = staticATokenImplementation.interface.encodeFunctionData(
       'initialize',
-      [LENDING_POOL, AWETH, 'Static Aave Interest Bearing WETH', 'stataWETH']
+      [
+        LENDING_POOL,
+        AWETH,
+        'Static Aave Interest Bearing WETH',
+        'stataWETH',
+        ethers.constants.AddressZero,
+      ]
     );
 
     await proxy['initialize(address,address,bytes)'](
@@ -185,8 +192,6 @@ describe('StaticATokenLM: aToken wrapper with static balances and liquidity mini
     staticAToken = StaticATokenLMFactory.connect(proxy.address, userSigner);
 
     expect(await staticAToken.getIncentivesController()).to.be.eq(INCENTIVES_CONTROLLER);
-    expect(await staticATokenImplementation.isImplementation()).to.be.eq(true);
-    expect(await staticAToken.isImplementation()).to.be.eq(false);
 
     ctxtParams = {
       staticAToken: <StaticATokenLM>staticAToken,
@@ -208,28 +213,6 @@ describe('StaticATokenLM: aToken wrapper with static balances and liquidity mini
 
   after(async () => {
     await evmRevert(snap);
-  });
-
-  it('Deposit WETH directly to implementation (expect revert)', async () => {
-    const amountToDeposit = utils.parseEther('5');
-    const amountToWithdraw = MAX_UINT_AMOUNT;
-
-    // Just preparation
-    await waitForTx(await weth.deposit({ value: amountToDeposit }));
-    await waitForTx(
-      await weth.approve(staticATokenImplementation.address, amountToDeposit, defaultTxParams)
-    );
-
-    // Depositing
-    await expect(
-      staticATokenImplementation.deposit(
-        userSigner._address,
-        amountToDeposit,
-        0,
-        true,
-        defaultTxParams
-      )
-    ).to.be.revertedWith(LM_ERRORS.ONLY_PROXY_MAY_CALL);
   });
 
   it('Deposit WETH on stataWETH, then withdraw of the whole balance in underlying', async () => {
@@ -265,13 +248,11 @@ describe('StaticATokenLM: aToken wrapper with static balances and liquidity mini
     const ctxtAfterWithdrawal = await getContext(ctxtParams);
 
     // Claiming the rewards
-    await waitForTx(
-      await staticAToken.connect(userSigner).claimRewards(userSigner._address, false)
-    );
+    await waitForTx(await staticAToken.connect(userSigner).claimRewards(userSigner._address));
 
     const ctxtAfterClaimNoForce = await getContext(ctxtParams);
 
-    await waitForTx(await staticAToken.connect(userSigner).claimRewards(userSigner._address, true));
+    await waitForTx(await staticAToken.connect(userSigner).claimRewards(userSigner._address));
 
     const ctxtAfterClaimForce = await getContext(ctxtParams);
 
@@ -361,17 +342,13 @@ describe('StaticATokenLM: aToken wrapper with static balances and liquidity mini
     const ctxtAfterWithdrawal = await getContext(ctxtParams);
 
     // Claim
-    await waitForTx(
-      await staticAToken.connect(userSigner).claimRewards(userSigner._address, false)
-    );
+    await waitForTx(await staticAToken.connect(userSigner).claimRewards(userSigner._address));
     const ctxtAfterClaim = await getContext(ctxtParams);
 
     await waitForTx(await staticAToken.collectAndUpdateRewards());
     const ctxtAfterUpdate = await getContext(ctxtParams);
 
-    await waitForTx(
-      await staticAToken.connect(userSigner).claimRewards(userSigner._address, false)
-    );
+    await waitForTx(await staticAToken.connect(userSigner).claimRewards(userSigner._address));
     const ctxtAfterClaim2 = await getContext(ctxtParams);
 
     expect(ctxtInitial.userStaticATokenBalance).to.be.eq(0);
@@ -1053,9 +1030,7 @@ describe('StaticATokenLM: aToken wrapper with static balances and liquidity mini
     const ctxtAfterWithdrawal = await getContext(ctxtParams);
 
     // Claim
-    await waitForTx(
-      await staticAToken.connect(user2Signer).claimRewards(user2Signer._address, true)
-    );
+    await waitForTx(await staticAToken.connect(user2Signer).claimRewards(user2Signer._address));
     const ctxtAfterClaim = await getContext(ctxtParams);
 
     // Checks
@@ -1122,7 +1097,7 @@ describe('StaticATokenLM: aToken wrapper with static balances and liquidity mini
     const ctxtAfterWithdrawal = await getContext(ctxtParams);
 
     // Claim
-    await waitForTx(await staticAToken.connect(user2Signer).claimRewardsToSelf(true));
+    await waitForTx(await staticAToken.connect(user2Signer).claimRewardsToSelf());
     const ctxtAfterClaim = await getContext(ctxtParams);
 
     // Checks
@@ -1212,7 +1187,7 @@ describe('StaticATokenLM: aToken wrapper with static balances and liquidity mini
     await waitForTx(
       await staticAToken
         .connect(claimerSigner)
-        .claimRewardsOnBehalf(user2Signer._address, user2Signer._address, true)
+        .claimRewardsOnBehalf(user2Signer._address, user2Signer._address)
     );
     const ctxtAfterClaim = await getContext(ctxtParams);
 
@@ -1281,7 +1256,7 @@ describe('StaticATokenLM: aToken wrapper with static balances and liquidity mini
     await expect(
       staticAToken
         .connect(claimerSigner)
-        .claimRewardsOnBehalf(user2Signer._address, user2Signer._address, true)
+        .claimRewardsOnBehalf(user2Signer._address, user2Signer._address)
     ).to.be.revertedWith(LM_ERRORS.INVALID_CLAIMER);
   });
 
@@ -1319,12 +1294,12 @@ describe('StaticATokenLM: aToken wrapper with static balances and liquidity mini
 
     // Claim
     await waitForTx(
-      await staticAToken.claimRewardsOnBehalf(userSigner._address, userSigner._address, true)
+      await staticAToken.claimRewardsOnBehalf(userSigner._address, userSigner._address)
     );
     await waitForTx(
       await staticAToken
         .connect(user2Signer)
-        .claimRewardsOnBehalf(user2Signer._address, user2Signer._address, true)
+        .claimRewardsOnBehalf(user2Signer._address, user2Signer._address)
     );
     const ctxtAfterClaim = await getContext(ctxtParams);
 
