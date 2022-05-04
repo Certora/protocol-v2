@@ -70,18 +70,7 @@ contract StaticATokenLM is
   // user => unclaimedRewards (in RAYs)
   mapping(address => uint256) private _unclaimedRewards;
 
-  bool public isImplementation;
-
   address private _l1TokenBridge;
-
-  modifier onlyProxy() {
-    require(isImplementation == false, StaticATokenErrors.ONLY_PROXY_MAY_CALL);
-    _;
-  }
-
-  constructor() public {
-    isImplementation = true;
-  }
 
   ///@inheritdoc VersionedInitializable
   function getRevision() internal pure virtual override returns (uint256) {
@@ -309,7 +298,7 @@ contract StaticATokenLM is
     uint256 amount,
     uint16 referralCode,
     bool fromUnderlying
-  ) internal onlyProxy returns (uint256) {
+  ) internal returns (uint256) {
     require(recipient != address(0), StaticATokenErrors.INVALID_RECIPIENT);
 
     if (fromUnderlying) {
@@ -377,7 +366,7 @@ contract StaticATokenLM is
     if (address(INCENTIVES_CONTROLLER) == address(0)) {
       return;
     }
-    uint256 rewardsIndex = _getCurrentRewardsIndex();
+    uint256 rewardsIndex = getCurrentRewardsIndex();
     if (from != address(0)) {
       _updateUser(from, rewardsIndex);
     }
@@ -408,7 +397,7 @@ contract StaticATokenLM is
    * @param receiver The address to receive the rewards
    */
   function _claimRewardsOnBehalf(address onBehalfOf, address receiver) internal {
-    uint256 currentRewardsIndex = _getCurrentRewardsIndex();
+    uint256 currentRewardsIndex = getCurrentRewardsIndex();
     uint256 balance = balanceOf(onBehalfOf);
     uint256 userReward = _getClaimableRewards(onBehalfOf, balance, currentRewardsIndex);
     uint256 totalRewardTokenBalance = REWARD_TOKEN.balanceOf(address(this));
@@ -520,7 +509,8 @@ contract StaticATokenLM is
     return reward;
   }
 
-  function _getCurrentRewardsIndex() public view returns (uint256) {
+  ///@inheritdoc IStaticATokenLM
+  function getCurrentRewardsIndex() public view override returns (uint256) {
     (uint256 index, uint256 emissionPerSecond, uint256 lastUpdateTimestamp) =
       INCENTIVES_CONTROLLER.getAssetData(address(ATOKEN));
     uint256 distributionEnd = INCENTIVES_CONTROLLER.DISTRIBUTION_END();
@@ -555,28 +545,12 @@ contract StaticATokenLM is
 
   ///@inheritdoc IStaticATokenLM
   function getClaimableRewards(address user) external view override returns (uint256) {
-    return _getClaimableRewards(user, balanceOf(user), _getCurrentRewardsIndex());
+    return _getClaimableRewards(user, balanceOf(user), getCurrentRewardsIndex());
   }
 
   ///@inheritdoc IStaticATokenLM
   function getUnclaimedRewards(address user) external view override returns (uint256) {
     return _unclaimedRewards[user].rayToWadNoRounding();
-  }
-
-  function getAccRewardsPerToken() external view override returns (uint256) {
-    return 0;
-  }
-
-  function getLifetimeRewardsClaimed() external view override returns (uint256) {
-    return 0;
-  }
-
-  function getLifetimeRewards() external view override returns (uint256) {
-    return 0;
-  }
-
-  function getLastRewardBlock() external view override returns (uint256) {
-    return 0;
   }
 
   function getIncentivesController() external view override returns (IAaveIncentivesController) {

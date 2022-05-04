@@ -216,13 +216,11 @@ interface IStaticATokenLM is IERC20, IInitializableStaticATokenLM {
    */
   function getUnclaimedRewards(address user) external view returns (uint256);
 
-  function getAccRewardsPerToken() external view returns (uint256);
-
-  function getLifetimeRewardsClaimed() external view returns (uint256);
-
-  function getLifetimeRewards() external view returns (uint256);
-
-  function getLastRewardBlock() external view returns (uint256);
+  /**
+   * @notice The underlying asset reward index in RAY
+   * @return The underlying asset reward index in RAY
+   */
+  function getCurrentRewardsIndex() external view returns (uint256);
 
   function LENDING_POOL() external view returns (ILendingPool);
 
