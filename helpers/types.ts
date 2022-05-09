@@ -97,11 +97,9 @@ export enum eContractid {
   UniswapLiquiditySwapAdapter = 'UniswapLiquiditySwapAdapter',
   UniswapRepayAdapter = 'UniswapRepayAdapter',
   FlashLiquidationAdapter = 'FlashLiquidationAdapter',
-  MockParaSwapAugustus = 'MockParaSwapAugustus',
-  MockParaSwapAugustusRegistry = 'MockParaSwapAugustusRegistry',
-  ParaSwapLiquiditySwapAdapter = 'ParaSwapLiquiditySwapAdapter',
-  UiIncentiveDataProviderV2V3 = 'UiIncentiveDataProviderV2V3',
-  UiIncentiveDataProviderV2 = 'UiIncentiveDataProviderV2',
+  StaticAToken = 'StaticAToken',
+  StaticATokenLM = 'StaticATokenLM',
+  StaticATokenLMProxy = 'StaticATokenLMProxy',
 }
 
 /*

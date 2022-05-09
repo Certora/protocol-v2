@@ -25,8 +25,8 @@ interface IAaveIncentivesController {
     external
     view
     returns (
-      uint256,
-      uint256,
+      uint128,
+      uint128,
       uint256
     );
 
@@ -88,6 +88,8 @@ interface IAaveIncentivesController {
     external
     view
     returns (uint256);
+
+  function DISTRIBUTION_END() external view returns (uint256);
 
   /**
    * @dev Claims reward for an user, on all the assets of the lending pool, accumulating the pending rewards

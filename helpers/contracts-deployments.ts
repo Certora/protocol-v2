@@ -1,5 +1,5 @@
 import { Contract } from 'ethers';
-import { DRE, notFalsyOrZeroAddress } from './misc-utils';
+import { DRE, waitForTx } from './misc-utils';
 import {
   tEthereumAddress,
   eContractid,
@@ -51,10 +51,15 @@ import {
   WETH9MockedFactory,
   WETHGatewayFactory,
   FlashLiquidationAdapterFactory,
+<<<<<<< HEAD
   UiPoolDataProviderV2Factory,
   UiPoolDataProviderV2V3Factory,
   UiIncentiveDataProviderV2V3,
   UiIncentiveDataProviderV2Factory,
+=======
+  StaticATokenFactory,
+  StaticATokenLMFactory,
+>>>>>>> 68fcff5e6f6396b227cbdffa22394e94ee3fbbb0
 } from '../types';
 import {
   withSaveAndVerify,
@@ -693,101 +698,57 @@ export const deployFlashLiquidationAdapter = async (
     verify
   );
 
-export const chooseATokenDeployment = (id: eContractid) => {
-  switch (id) {
-    case eContractid.AToken:
-      return deployGenericATokenImpl;
-    case eContractid.DelegationAwareAToken:
-      return deployDelegationAwareATokenImpl;
-    default:
-      throw Error(`Missing aToken implementation deployment script for: ${id}`);
-  }
-};
-
-export const deployATokenImplementations = async (
-  pool: ConfigNames,
-  reservesConfig: { [key: string]: IReserveParams },
-  verify = false
+export const deployStaticAToken = async (
+  [pool, aTokenAddress, symbol]: [tEthereumAddress, tEthereumAddress, string],
+  verify?: boolean
 ) => {
-  const poolConfig = loadPoolConfig(pool);
-  const network = <eNetwork>DRE.network.name;
+  const args: [string, string, string, string] = [pool, aTokenAddress, `Wrapped ${symbol}`, symbol];
 
-  // Obtain the different AToken implementations of all reserves inside the Market config
-  const aTokenImplementations = [
-    ...Object.entries(reservesConfig).reduce<Set<eContractid>>((acc, [, entry]) => {
-      acc.add(entry.aTokenImpl);
-      return acc;
-    }, new Set<eContractid>()),
-  ];
-
-  for (let x = 0; x < aTokenImplementations.length; x++) {
-    const aTokenAddress = getOptionalParamAddressPerNetwork(
-      poolConfig[aTokenImplementations[x].toString()],
-      network
-    );
-    if (!notFalsyOrZeroAddress(aTokenAddress)) {
-      const deployImplementationMethod = chooseATokenDeployment(aTokenImplementations[x]);
-      console.log(`Deploying implementation`, aTokenImplementations[x]);
-      await deployImplementationMethod(verify);
-    }
-  }
-
-  // Debt tokens, for now all Market configs follows same implementations
-  const genericStableDebtTokenAddress = getOptionalParamAddressPerNetwork(
-    poolConfig.StableDebtTokenImplementation,
-    network
-  );
-  const geneticVariableDebtTokenAddress = getOptionalParamAddressPerNetwork(
-    poolConfig.VariableDebtTokenImplementation,
-    network
-  );
-
-  if (!notFalsyOrZeroAddress(genericStableDebtTokenAddress)) {
-    await deployGenericStableDebtToken(verify);
-  }
-  if (!notFalsyOrZeroAddress(geneticVariableDebtTokenAddress)) {
-    await deployGenericVariableDebtToken(verify);
-  }
-};
-
-export const deployRateStrategy = async (
-  strategyName: string,
-  args: [tEthereumAddress, string, string, string, string, string, string],
-  verify: boolean
-): Promise<tEthereumAddress> => {
-  switch (strategyName) {
-    default:
-      return await (
-        await deployDefaultReserveInterestRateStrategy(args, verify)
-      ).address;
-  }
-};
-export const deployMockParaSwapAugustus = async (verify?: boolean) =>
   withSaveAndVerify(
-    await new MockParaSwapAugustusFactory(await getFirstSigner()).deploy(),
-    eContractid.MockParaSwapAugustus,
-    [],
+    await new StaticATokenFactory(await getFirstSigner()).deploy(...args),
+    eContractid.StaticAToken,
+    args,
     verify
   );
+};
 
-export const deployMockParaSwapAugustusRegistry = async (
-  args: [tEthereumAddress],
+export const deployStaticATokenLM = async (
+  [pool, aTokenAddress, symbol, proxyAdmin]: [
+    tEthereumAddress,
+    tEthereumAddress,
+    string,
+    tEthereumAddress
+  ],
   verify?: boolean
-) =>
-  withSaveAndVerify(
-    await new MockParaSwapAugustusRegistryFactory(await getFirstSigner()).deploy(...args),
-    eContractid.MockParaSwapAugustusRegistry,
+) => {
+  const args: [string, string, string, string] = [pool, aTokenAddress, `Wrapped ${symbol}`, symbol];
+
+  const staticATokenImplementation = await withSaveAndVerify(
+    await new StaticATokenLMFactory(await getFirstSigner()).deploy(),
+    eContractid.StaticATokenLM,
     args,
     verify
   );
 
-export const deployParaSwapLiquiditySwapAdapter = async (
-  args: [tEthereumAddress, tEthereumAddress],
-  verify?: boolean
-) =>
-  withSaveAndVerify(
-    await new ParaSwapLiquiditySwapAdapterFactory(await getFirstSigner()).deploy(...args),
-    eContractid.ParaSwapLiquiditySwapAdapter,
-    args,
-    verify
+  const proxy = await deployInitializableAdminUpgradeabilityProxy(verify);
+
+  await registerContractInJsonDb(eContractid.StaticATokenLMProxy, proxy);
+  const encodedInitializedParams = staticATokenImplementation.interface.encodeFunctionData(
+    'initialize',
+    [...args]
   );
+
+  // Initialize implementation to prevent others to do it
+  await waitForTx(await staticATokenImplementation.initialize(...args));
+
+  // Initialize proxy
+  await waitForTx(
+    await proxy['initialize(address,address,bytes)'](
+      staticATokenImplementation.address,
+      proxyAdmin,
+      encodedInitializedParams
+    )
+  );
+
+  return { proxy: proxy.address, implementation: staticATokenImplementation.address };
+};
