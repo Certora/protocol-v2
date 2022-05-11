@@ -1,9 +1,13 @@
+import "erc20.spec"
+
 methods {
-    raymul(uint x, uint y ) => identity(x);
-    raydiv(uint x, uint y ) => identity(x);
+    raymul(uint x, uint y ) => identity(x, y);
+    raydiv(uint x, uint y ) => identity(x, y);
 }
 
-import "erc20.spec"
+function identity (uint x, uint y) returns uint{
+    return x;
+}
 
 rule sanity(method f)
 {
@@ -65,7 +69,7 @@ description "$f can no longer be called after it had been called by someone else
 	f@withrevert(e1, arg);
 	bool succeeded = !lastReverted;
 
-	assert succeeded, "${f.selector} can be not be called if was called by someone else";
+	assert succeeded, "${f.selector} can not be called if was called by someone else";
 }
 
 
@@ -95,7 +99,7 @@ description "$f can be called by more than one user without reverting"
 	f@withrevert(e2, arg2) at initialStorage; // unprivileged
 	bool secondSucceeded = !lastReverted;
 
-	assert  !(firstSucceeded && secondSucceeded), "${f.selector} can be called by both ${e1.msg.sender} and ${e2.msg.sender}, so it is not privileged";
+	assert !(firstSucceeded && secondSucceeded), "${f.selector} can be called by both ${e1.msg.sender} and ${e2.msg.sender}, so it is not privileged";
 }
 
 rule whoChangedBalanceOf(method f, address u) {

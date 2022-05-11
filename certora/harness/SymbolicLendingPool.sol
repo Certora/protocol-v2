@@ -3,13 +3,17 @@
 pragma solidity 0.6.12;
 pragma experimental ABIEncoderV2;
 
-import "./IERC20.sol";
-import {SafeMath} from '../../contracts/dependencies/openzeppelin/contracts/SafeMath.sol';
-import "../../contracts/interfaces/IAToken.sol"
+// import {SafeMath} from '../../contracts/dependencies/openzeppelin/contracts/SafeMath.sol';
+import {SafeERC20} from '../../contracts/dependencies/openzeppelin/contracts/SafeERC20.sol';
+import "../../contracts/interfaces/IAToken.sol";
 contract SymbolicLendingPool  {
+
+    using SafeERC20 for IERC20;
 
     address aToken; 
     uint256 liquidityIndex = 1; //TODO 
+    uint256 data;
+
     function deposit(
     address asset,
     uint256 amount,
@@ -35,9 +39,17 @@ contract SymbolicLendingPool  {
     external
     view
     virtual
-    override
     returns (uint256) {
       return liquidityIndex;
     }
 
+    function finalizeTransfer(
+    address asset,
+    address from,
+    address to,
+    uint256 amount,
+    uint256 balanceFromAfter,
+    uint256 balanceToBefore
+    ) external {
+    }
 } 

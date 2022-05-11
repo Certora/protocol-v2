@@ -1,0 +1,16 @@
+[
+    {
+        "importFilesToOrigRelpaths": {
+            ".certora_config/0_erc20.spec": "certora/specs/erc20.spec"
+        },
+        "primary_contract": "StaticATokenLM",
+        "specfile": ".certora_config/0_staticAtokenLM.spec",
+        "specfileOrigRelpath": "certora/specs/staticAtokenLM.spec",
+        "specfilesToImportDecls": {
+            ".certora_config/0_staticAtokenLM.spec": [
+                "erc20.spec"
+            ]
+        },
+        "type": "spec"
+    }
+]
