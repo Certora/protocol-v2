@@ -10,4 +10,3 @@ certoraRun contracts/protocol/tokenization/StaticATokenLM.sol contracts/protocol
     --staging \
     --optimistic_loop \
     --msg "StaticATokenLM"
- 
