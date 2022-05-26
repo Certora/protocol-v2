@@ -7,6 +7,5 @@ certoraRun contracts/protocol/tokenization/StaticATokenLM.sol contracts/protocol
     AToken:_pool=SymbolicLendingPool \
     AToken:_underlyingAsset=DummyERC20C \
     --solc solc6.12 \
-    --staging \
     --optimistic_loop \
     --msg "StaticATokenLM"
