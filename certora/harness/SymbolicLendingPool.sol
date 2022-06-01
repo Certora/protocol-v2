@@ -20,6 +20,7 @@ contract SymbolicLendingPool  {
     address onBehalfOf,
     uint16 referralCode
   ) external {
+    address test = aToken;
     IERC20(asset).safeTransferFrom(msg.sender, aToken, amount);
     IAToken(aToken).mint(onBehalfOf, amount,liquidityIndex );
   }
@@ -51,5 +52,9 @@ contract SymbolicLendingPool  {
     uint256 balanceFromAfter,
     uint256 balanceToBefore
     ) external {
+    }
+
+    function getATokenAddress(address asset) public returns (address) {
+      return aToken;
     }
 } 
