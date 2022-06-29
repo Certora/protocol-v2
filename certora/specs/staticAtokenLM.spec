@@ -372,6 +372,7 @@ rule permitIntegrity(address owner, address spender, uint256 value, uint256 dead
 	assert nonces(owner) == nonceBefore + 1;
 }
 
+/*
 rule claimRewardsIntegrity(address recipient) 
 {
 	env e;
@@ -384,3 +385,4 @@ rule claimRewardsIntegrity(address recipient)
 	assert INCENTIVES_CONTROLLER!=0, "missing 0 address check";
 	assert rewardByStaticAToken_ >= _rewardByStaticAToken;
 }
+*/

@@ -11,46 +11,6 @@ import {AToken} from '../../contracts/protocol/tokenization/AToken.sol';
  */
 contract ATokenHarness is AToken {
 
-  // constructor(
-  //   Pool pool
-  // ) public AToken(pool) {}
-
-  
-  // /**
-  //  * @dev Calls burn with index == 1 RAY
-  //  * @param amount the amount being burned
-  //  **/
-  // function burn(
-  //   address user,
-  //   address receiverOfUnderlying,
-  //   uint256 amount,
-  //   uint256 index
-  // ) public override onlyLendingPool {
-
-  //   // changes for pool
-  //   // require(index == 1e27, 'index is assumed to be 1 RAY');
-  //   // super.burn(user, receiverOfUnderlying, amount, index);
-
-  //   super.burn(user, receiverOfUnderlying, amount, 1e27);
-  //   //POOL.setATokenFlag(!POOL.getATokenFlag());
-  // }
-
-  // /**
-  //  * @dev Calls mint with index == 1 RAY
-  //  * @param amount the amount of tokens to mint
-  //  **/
-  // function mint(
-  //   address user,
-  //   uint256 amount,
-  //   uint256 index
-  // ) public onlyLendingPool returns (bool) {
-
-  //   // changes for pool
-  //   // require(index == 1e27, 'index is assumed to be 1 RAY');
-  //   // return super.mint(user, amount, index);
-  //   return super.mint(user, amount, 1e27);
-  // }
-
   function scaledTotalSupply() public view override returns (uint256) {
     uint256 val = super.scaledTotalSupply();
    // POOL.setATokenFlag(!POOL.getATokenFlag());
